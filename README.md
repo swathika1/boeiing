@@ -1,32 +1,53 @@
 # Boeing CertX - Real-time Aerospace Certification Pipeline
 
-A production-grade aerospace certification dashboard that simulates FAA certification workflows in real-time.
+A **STUNNING** production-grade aerospace certification dashboard with 3D flight animations, multiple aircraft models, and enterprise-grade UI.
 
-## 🚀 Quick Start
+## 🚀 Quick Start (One Command!)
 
 ```bash
 npm install && npm run dev
 ```
 
-The application will start at `http://localhost:5173`
+Opens at **http://localhost:5173** (or next available port)
 
-## 📋 Features
+## 📋 ✨ Features - NOW WITH 3D & WOW FACTOR
 
-- **Real-time Pipeline Visualization**: Watch agents move through 7 certification stages
-- **Live Activity Log**: Streaming logs of all certification events
-- **Document Verification Dashboard**: 150+ requirements with status tracking
-- **Performance Metrics**: Real-time KPIs including verification percentage, time-to-cert, and risk level
-- **Certification Package Generation**: One-click FAA package export with success animation
-- **Interactive Details Panel**: Deep-dive into individual requirements and documents
+### 🛫 3D Flight Animations (NEW!)
+- **Interactive 3D Airplane Models** - Real-time rendered with Three.js
+- **Rotating/Orbiting Camera** - Professional flight visualization
+- **Premium Lighting** - Blue accent lights with metallic effects
+- **60fps Smooth Rendering** - Professional-grade animations
+
+### ✈️ Multiple Aircraft Models (NEW!)
+Select and certify different aircraft in real-time:
+- Boeing 737 | Boeing 747 | Boeing 787 | Airbus A380 | Airbus A350
+
+### 🎨 Premium Dark UI (NEW!)
+- **Gradient Dark Theme** - Slate-to-blue enterprise styling
+- **Glowing Effects** - Blue/cyan neon accents
+- **Glassmorphic Cards** - Backdrop blur & transparency
+- **Particle Effects** - Streaming data visualization
+
+### 🌟 Enterprise Animations
+- Real-time Pipeline Visualization
+- Live Activity Log Streaming
+- Document Verification (150+ CFR requirements)
+- Performance Metrics & Risk Indicators
+- Certification Package Generation with Confetti
+- Interactive Details Panel
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React 18
-- **Build Tool**: Vite 4
-- **Styling**: Tailwind CSS 3
-- **Animations**: Framer Motion 10
-- **Icons**: Lucide React
-- **No Backend Required**: Full client-side simulation
+| Component | Library | Version |
+|-----------|---------|---------|
+| Frontend | React | 18.2.0 |
+| Build | Vite | 4.4.5 |
+| Styling | Tailwind CSS | 3.3.3 |
+| Animations | Framer Motion | 10.16.4 |
+| **3D Graphics** | **Three.js** | **0.156.0** |
+| **React 3D** | **@react-three/fiber** | **8.14.2** |
+| **3D Helpers** | **@react-three/drei** | **9.88.3** |
+| Icons | Lucide React | 0.263.1 |
 
 ## 🏗️ Architecture
 
@@ -45,25 +66,46 @@ The application will start at `http://localhost:5173`
 - Fake PDF references and compliance values
 - Live pipeline activity every 1-2 seconds
 
-## 🎨 Design Features
+## 🎨 Design Highlights
 
-- Enterprise SaaS aesthetic
-- Minimal, professional styling
-- Color-coded status indicators:
-  - 🟢 Green: Verified
-  - 🟡 Yellow: Processing
-  - 🔴 Red: Missing/Error
-  - 🔵 Blue: Active
-- Smooth Framer Motion animations
-- Responsive grid layouts
+✅ **Dark Enterprise Theme** - Professional aerospace styling (Palantir-like)
+✅ **Color Coding** - Blue (active) | Green (verified) | Red (error) | Amber (warning)
+✅ **Premium Gradients** - Smooth color transitions
+✅ **Smooth Animations** - Framer Motion throughout
+✅ **Responsive Design** - Mobile to 4K displays
+✅ **Zero APIs** - Fully client-side simulation
+
+## 🎯 Visual Enhancements
+
+- 🛫 **3D Airplane Viewer** - Real-time 3D rendering
+- ✨ **Particle Effects** - Animated background particles
+- 🎭 **Hover Animations** - Cards lift & glow on interaction
+- 💫 **Pulsing Indicators** - Live status animations
+- 🎉 **Confetti Mode** - Success celebration with particle burst
+- 🌊 **Glassmorphism** - Modern backdrop blur effects
 
 ## 📦 Build for Production
 
 ```bash
-npm run build
-npm run preview
+npm run build      # Create optimized production build
+npm run preview    # Preview production build locally
 ```
+
+## 🌟 Status
+
+**✅ Live & Production-Ready**
+
+Perfect for:
+- Product demos
+- Client presentations
+- System showcases
+- UI/UX portfolio pieces
+- Training materials
 
 ## 📄 License
 
-MIT
+MIT - Free for commercial use
+
+---
+
+**Made with ❤️ for the aerospace industry** ✈️
