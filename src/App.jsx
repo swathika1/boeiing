@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Canvas, useFrame } from '@react-three/fiber';
 import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
 import * as THREE from 'three';
+import { jsPDF } from 'jspdf';
 import {
   Activity,
   CheckCircle,
@@ -191,6 +192,175 @@ const ParticleBackground = ({ isActive }) => {
     />
   );
 };
+
+// PDF Report Generator
+const generateCertificationReport = (aircraft, requirements, metrics) => {
+  const doc = new jsPDF();
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const pageHeight = doc.internal.pageSize.getHeight();
+  let yPosition = 10;
+  
+  const addLine = (height = 1) => {
+    yPosition += height;
+  };
+
+  // Header
+  doc.setFillColor(15, 23, 42); // Dark blue
+  doc.rect(0, 0, pageWidth, 40, 'F');
+  
+  doc.setTextColor(59, 130, 246); // Blue
+  doc.setFontSize(24);
+  doc.text('BOEING CERTX', pageWidth / 2, 15, { align: 'center' });
+  
+  doc.setFontSize(10);
+  doc.setTextColor(107, 114, 128); // Gray
+  doc.text('Real-time Aerospace Certification Pipeline', pageWidth / 2, 25, { align: 'center' });
+  doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, 32, { align: 'center' });
+  
+  yPosition = 50;
+
+  // Aircraft Section
+  doc.setTextColor(15, 23, 42);
+  doc.setFontSize(14);
+  doc.setFont(undefined, 'bold');
+  doc.text('AIRCRAFT CERTIFICATION REPORT', 10, yPosition);
+  
+  yPosition += 10;
+  doc.setFontSize(11);
+  doc.setFont(undefined, 'normal');
+  
+  const aircraftModel = AIRCRAFT_MODELS.find(m => m.id === aircraft);
+  doc.text(`Aircraft Model: ${aircraftModel?.name || 'Unknown'}`, 10, yPosition);
+  yPosition += 6;
+  doc.text(`Range: ${aircraftModel?.range || 'N/A'}`, 10, yPosition);
+  yPosition += 6;
+  doc.text(`Certification Date: ${new Date().toLocaleDateString()}`, 10, yPosition);
+  yPosition += 6;
+  doc.text(`Status: FAA LEVEL 2 CERTIFICATION`, 10, yPosition);
+  
+  // Horizontal line
+  yPosition += 8;
+  doc.setDrawColor(59, 130, 246);
+  doc.line(10, yPosition, pageWidth - 10, yPosition);
+  yPosition += 8;
+
+  // Metrics Summary
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('COMPLIANCE METRICS SUMMARY', 10, yPosition);
+  
+  yPosition += 8;
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'normal');
+  
+  const metricsData = [
+    { label: 'Requirements Verified', value: metrics.verified, unit: '%' },
+    { label: 'Total Requirements', value: metrics.total, unit: '' },
+    { label: 'Missing Documents', value: metrics.missing, unit: '' },
+    { label: 'Risk Level', value: metrics.riskLevel, unit: '' },
+    { label: 'Time to Certification', value: metrics.certTime, unit: 'hours' },
+  ];
+
+  metricsData.forEach(metric => {
+    doc.text(`${metric.label}: `, 10, yPosition);
+    doc.setFont(undefined, 'bold');
+    doc.text(`${metric.value}${metric.unit ? ' ' + metric.unit : ''}`, 100, yPosition);
+    doc.setFont(undefined, 'normal');
+    yPosition += 6;
+  });
+
+  // New page if needed
+  if (yPosition > pageHeight - 60) {
+    doc.addPage();
+    yPosition = 10;
+  }
+
+  // Requirements Details
+  yPosition += 8;
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text('REQUIREMENT VERIFICATION DETAILS', 10, yPosition);
+  
+  yPosition += 10;
+  doc.setFontSize(9);
+  doc.setFont(undefined, 'normal');
+
+  // Table header
+  doc.setFillColor(107, 114, 128);
+  doc.setTextColor(255, 255, 255);
+  doc.rect(10, yPosition - 4, pageWidth - 20, 6, 'F');
+  doc.text('Req ID', 12, yPosition);
+  doc.text('Status', 45, yPosition);
+  doc.text('Document', 80, yPosition);
+  doc.text('Value', 150, yPosition);
+
+  yPosition += 8;
+  doc.setTextColor(15, 23, 42);
+
+  // Table rows
+  const requirementsToShow = requirements.slice(0, 30);
+  requirementsToShow.forEach((req, idx) => {
+    if (yPosition > pageHeight - 15) {
+      doc.addPage();
+      yPosition = 10;
+      
+      // Repeat header on new page
+      doc.setFillColor(107, 114, 128);
+      doc.setTextColor(255, 255, 255);
+      doc.rect(10, yPosition - 4, pageWidth - 20, 6, 'F');
+      doc.setFontSize(9);
+      doc.text('Req ID', 12, yPosition);
+      doc.text('Status', 45, yPosition);
+      doc.text('Document', 80, yPosition);
+      doc.text('Value', 150, yPosition);
+      
+      yPosition += 8;
+      doc.setTextColor(15, 23, 42);
+    }
+
+    // Alternate row colors
+    if (idx % 2 === 0) {
+      doc.setFillColor(248, 250, 252);
+      doc.rect(10, yPosition - 4, pageWidth - 20, 5, 'F');
+    }
+
+    // Status color coding
+    if (req.status === 'verified') {
+      doc.setTextColor(16, 185, 129); // Green
+    } else if (req.status === 'missing') {
+      doc.setTextColor(239, 68, 68); // Red
+    } else {
+      doc.setTextColor(245, 158, 11); // Amber
+    }
+
+    doc.text(req.id, 12, yPosition);
+    doc.text(req.status.toUpperCase(), 45, yPosition);
+    
+    doc.setTextColor(15, 23, 42);
+    const docName = req.document.length > 25 ? req.document.substring(0, 22) + '...' : req.document;
+    doc.text(docName, 80, yPosition);
+    doc.text(req.value, 150, yPosition);
+
+    yPosition += 6;
+  });
+
+  // Footer
+  yPosition = pageHeight - 20;
+  doc.setDrawColor(59, 130, 246);
+  doc.line(10, yPosition, pageWidth - 10, yPosition);
+  
+  yPosition += 5;
+  doc.setFontSize(8);
+  doc.setTextColor(107, 114, 128);
+  doc.text('This is an official Boeing CertX certification report. For internal use only.', 10, yPosition);
+  doc.text(`Report ID: ${Math.random().toString(36).substr(2, 9).toUpperCase()}`, pageWidth - 10, yPosition, { align: 'right' });
+  
+  yPosition += 5;
+  doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth / 2, yPosition, { align: 'center' });
+
+  return doc;
+};
+
 
 // Enhanced Metric Card with gradient
 const MetricCard = ({ label, value, icon: Icon, color = 'blue' }) => {
@@ -607,10 +777,23 @@ export default function App() {
   // Generate certification package
   const handleGeneratePackage = async () => {
     setIsGenerating(true);
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Generate PDF
+    const pdf = generateCertificationReport(selectedAircraft, requirements, {
+      verified: verifiedPercentage,
+      total: requirements.length,
+      missing: missingCount,
+      riskLevel: missingCount > 20 ? 'High' : missingCount > 10 ? 'Medium' : 'Low',
+      certTime: certificationTime.toFixed(1),
+    });
+
+    // Download PDF
+    pdf.save(`Boeing_CertX_Report_${new Date().getTime()}.pdf`);
+
     setShowSuccess(true);
     setIsGenerating(false);
-    setTimeout(() => setShowSuccess(false), 4000);
+    setTimeout(() => setShowSuccess(false), 3000);
   };
 
   return (
@@ -821,15 +1004,19 @@ export default function App() {
                 <h3 className="text-3xl font-bold text-center text-transparent bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text mb-2">
                   Success!
                 </h3>
-                <p className="text-center text-slate-300 mb-6 font-semibold">
-                  FAA Certification Package generated and ready for submission.
+                <p className="text-center text-slate-300 mb-2 font-semibold">
+                  FAA Certification Package Generated
+                </p>
+                <p className="text-center text-slate-400 text-sm mb-6">
+                  PDF report has been downloaded to your device with all compliance details and verification status.
                 </p>
                 <motion.button
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowSuccess(false)}
                   className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg font-bold hover:shadow-lg shadow-green-500/50 transition-all"
                 >
-                  📥 Download Package
+                  ✓ Close
                 </motion.button>
               </motion.div>
               <motion.div
