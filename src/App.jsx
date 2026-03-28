@@ -1,5 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { Canvas, useFrame } from '@react-three/fiber';
+import { OrbitControls, PerspectiveCamera } from '@react-three/drei';
+import * as THREE from 'three';
 import {
   Activity,
   CheckCircle,
@@ -10,7 +13,18 @@ import {
   Download,
   X,
   ChevronRight,
+  Plane,
+  Radio,
 } from 'lucide-react';
+
+// Aircraft models catalog
+const AIRCRAFT_MODELS = [
+  { id: 'b737', name: 'Boeing 737', icon: '✈️', color: '#1e40af', range: '3550 nm' },
+  { id: 'b747', name: 'Boeing 747', icon: '🛩️', color: '#0369a1', range: '7670 nm' },
+  { id: 'b787', name: 'Boeing 787', icon: '✈️', color: '#0d47a1', range: '7305 nm' },
+  { id: 'a380', name: 'Airbus A380', icon: '🛫', color: '#1a1a2e', range: '8000 nm' },
+  { id: 'a350', name: 'Airbus A350', icon: '✈️', color: '#16213e', range: '8000 nm' },
+];
 
 // Mock data generator
 const generateMockData = () => {
@@ -35,64 +49,214 @@ const PIPELINE_STAGES = [
   'Package Output',
 ];
 
-// Metric Card Component
+// 3D Airplane Component
+const Airplane = ({ position, rotation }) => {
+  const groupRef = useRef();
+  
+  useFrame(() => {
+    if (groupRef.current) {
+      groupRef.current.rotation.z += 0.02;
+    }
+  });
+
+  return (
+    <group ref={groupRef} position={position} rotation={rotation}>
+      {/* Fuselage */}
+      <mesh>
+        <cylinderGeometry args={[0.4, 0.3, 4, 8]} />
+        <meshStandardMaterial color="#2563eb" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Cockpit */}
+      <mesh position={[0, 0, 2]}>
+        <sphereGeometry args={[0.35, 8, 8]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.9} roughness={0.1} />
+      </mesh>
+      {/* Left Wing */}
+      <mesh position={[-2.5, 0, 0]}>
+        <boxGeometry args={[4.5, 0.2, 0.8]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Right Wing */}
+      <mesh position={[2.5, 0, 0]}>
+        <boxGeometry args={[4.5, 0.2, 0.8]} />
+        <meshStandardMaterial color="#1e40af" metalness={0.7} roughness={0.3} />
+      </mesh>
+      {/* Tail */}
+      <mesh position={[0, 0.5, -2]}>
+        <boxGeometry args={[0.3, 1.5, 1]} />
+        <meshStandardMaterial color="#0369a1" metalness={0.8} roughness={0.2} />
+      </mesh>
+      {/* Glow effect */}
+      <mesh position={[0, 0, 0]}>
+        <sphereGeometry args={[5, 32, 32]} />
+        <meshStandardMaterial
+          color="#3b82f6"
+          emissive="#2563eb"
+          emissiveIntensity={0.3}
+          transparent
+          opacity={0.1}
+        />
+      </mesh>
+    </group>
+  );
+};
+
+// Particle Background
+const ParticleBackground = ({ isActive }) => {
+  const canvasRef = useRef();
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    let animationFrameId;
+    const particles = [];
+
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    class Particle {
+      constructor() {
+        this.x = Math.random() * canvas.width;
+        this.y = Math.random() * canvas.height;
+        this.size = Math.random() * 2;
+        this.speedX = (Math.random() - 0.5) * 0.5;
+        this.speedY = (Math.random() - 0.5) * 0.5;
+        this.opacity = Math.random() * 0.5 + 0.2;
+      }
+
+      update() {
+        this.x += this.speedX;
+        this.y += this.speedY;
+        if (this.x > canvas.width) this.x = 0;
+        if (this.x < 0) this.x = canvas.width;
+        if (this.y > canvas.height) this.y = 0;
+        if (this.y < 0) this.y = canvas.height;
+      }
+
+      draw() {
+        ctx.fillStyle = `rgba(59, 130, 246, ${this.opacity})`;
+        ctx.beginPath();
+        ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    }
+
+    // Initialize particles
+    for (let i = 0; i < 100; i++) {
+      particles.push(new Particle());
+    }
+
+    const animate = () => {
+      ctx.fillStyle = 'rgba(248, 250, 252, 0.01)';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      particles.forEach((particle) => {
+        particle.update();
+        particle.draw();
+      });
+
+      animationFrameId = requestAnimationFrame(animate);
+    };
+
+    animate();
+
+    const handleResize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+
+    window.addEventListener('resize', handleResize);
+
+    return () => {
+      cancelAnimationFrame(animationFrameId);
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [isActive]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{
+        position: 'fixed',
+        top: 0,
+        left: 0,
+        width: '100%',
+        height: '100%',
+        opacity: 0.3,
+        zIndex: 0,
+        pointerEvents: 'none',
+      }}
+    />
+  );
+};
+
+// Enhanced Metric Card with gradient
 const MetricCard = ({ label, value, icon: Icon, color = 'blue' }) => {
   const colorMap = {
-    blue: 'from-blue-50 to-blue-100 border-blue-200 text-blue-900',
-    green: 'from-green-50 to-green-100 border-green-200 text-green-900',
-    amber: 'from-amber-50 to-amber-100 border-amber-200 text-amber-900',
-    red: 'from-red-50 to-red-100 border-red-200 text-red-900',
+    blue: 'from-blue-600 to-blue-400 shadow-blue-500/50',
+    green: 'from-green-600 to-green-400 shadow-green-500/50',
+    amber: 'from-amber-600 to-amber-400 shadow-amber-500/50',
+    red: 'from-red-600 to-red-400 shadow-red-500/50',
   };
 
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -5, scale: 1.02 }}
       transition={{ duration: 0.5 }}
-      className={`bg-gradient-to-br ${colorMap[color]} border rounded-lg p-6 shadow-sm hover:shadow-md transition-shadow`}
+      className={`bg-gradient-to-br ${colorMap[color]} rounded-xl p-6 shadow-2xl text-white border border-white border-opacity-20 backdrop-blur-sm hover:shadow-lg transition-all group`}
     >
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium opacity-75">{label}</p>
-          <p className="text-3xl font-bold mt-2">{value}</p>
+          <p className="text-sm font-medium opacity-90 group-hover:opacity-100 transition">{label}</p>
+          <p className="text-4xl font-bold mt-3 tracking-tight">{value}</p>
         </div>
-        <Icon className="w-8 h-8 opacity-40" />
+        <motion.div
+          animate={{ y: [0, -4, 0] }}
+          transition={{ repeat: Infinity, duration: 3 }}
+        >
+          <Icon className="w-10 h-10 opacity-70" />
+        </motion.div>
       </div>
     </motion.div>
   );
 };
 
-// Pipeline Stage Component
+// Enhanced Pipeline Stage with premium styling
 const PipelineStage = ({ stage, isActive, processCount }) => {
   return (
     <motion.div
-      className={`flex-1 px-3 py-4 rounded-lg border-2 transition-all ${
+      className={`flex-1 px-4 py-6 rounded-xl border-2 transition-all backdrop-blur-sm ${
         isActive
-          ? 'border-blue-500 bg-blue-50 shadow-lg'
-          : 'border-slate-200 bg-white shadow-sm'
+          ? 'border-blue-400 bg-gradient-to-br from-blue-500/20 to-blue-400/10 shadow-2xl shadow-blue-500/50'
+          : 'border-slate-300 bg-white/50 shadow-lg'
       }`}
       animate={{
         boxShadow: isActive
-          ? '0 0 16px rgba(59, 130, 246, 0.4)'
-          : '0 0 0px rgba(0, 0, 0, 0)',
+          ? '0 0 30px rgba(59, 130, 246, 0.6)'
+          : '0 10px 30px rgba(0, 0, 0, 0.1)',
       }}
+      whileHover={{ scale: 1.05 }}
     >
       <div className="text-center">
-        <p className="text-sm font-semibold text-slate-900">{stage}</p>
-        <div className="mt-2 flex items-center justify-center gap-2">
+        <motion.p className="text-sm font-bold text-slate-900 uppercase tracking-wider">{stage}</motion.p>
+        <div className="mt-3 flex items-center justify-center gap-2">
           <motion.div
-            className={`w-2 h-2 rounded-full ${isActive ? 'bg-blue-500' : 'bg-slate-300'}`}
-            animate={isActive ? { scale: [1, 1.2, 1] } : {}}
+            className={`w-3 h-3 rounded-full ${isActive ? 'bg-blue-500 shadow-lg shadow-blue-400' : 'bg-slate-400'}`}
+            animate={isActive ? { scale: [1, 1.3, 1], opacity: [1, 0.6, 1] } : {}}
             transition={{ repeat: Infinity, duration: 1.5 }}
           />
-          <span className="text-xs font-mono text-slate-600">{processCount}</span>
+          <span className="text-sm font-mono font-bold text-slate-700 bg-white/60 px-2 py-1 rounded">{processCount}</span>
         </div>
       </div>
     </motion.div>
   );
 };
 
-// Activity Log Component
+// Enhanced Activity Log with premium styling
 const ActivityLog = ({ logs }) => {
   const displayLogs = logs.slice(0, 8);
 
@@ -100,11 +264,16 @@ const ActivityLog = ({ logs }) => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="bg-white rounded-lg border border-slate-200 p-6 shadow-sm h-96 overflow-hidden flex flex-col"
+      className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-xl border border-slate-700 p-6 shadow-2xl h-96 overflow-hidden flex flex-col text-white"
     >
-      <h3 className="text-lg font-semibold text-slate-900 mb-4 flex items-center gap-2">
-        <Activity className="w-5 h-5 text-blue-500" />
-        Live Activity
+      <h3 className="text-lg font-bold mb-4 flex items-center gap-2 tracking-wide">
+        <motion.div
+          animate={{ rotate: 360 }}
+          transition={{ repeat: Infinity, duration: 2 }}
+        >
+          <Radio className="w-5 h-5 text-blue-400" />
+        </motion.div>
+        <span className="bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Live Feed</span>
       </h3>
       <div className="flex-1 overflow-y-auto space-y-2 pr-2">
         <AnimatePresence mode="popLayout">
@@ -115,13 +284,13 @@ const ActivityLog = ({ logs }) => {
               animate={{ opacity: 1, x: 0 }}
               exit={{ opacity: 0, x: -20 }}
               transition={{ duration: 0.3 }}
-              className="bg-slate-50 rounded p-3 text-sm border border-slate-200 hover:border-blue-300 transition-colors"
+              className="bg-gradient-to-r from-blue-500/20 to-cyan-500/20 rounded-lg p-3 text-sm border border-blue-400/30 hover:border-blue-400/60 transition-all hover:bg-blue-500/30 group cursor-pointer"
             >
-              <div className="flex gap-2">
-                <span className="text-slate-500 text-xs mt-0.5">◆</span>
-                <div>
-                  <p className="text-slate-900 font-medium">{log.text}</p>
-                  <p className="text-xs text-slate-500 mt-1">{log.time}</p>
+              <div className="flex gap-3">
+                <span className="text-cyan-400 text-xs mt-0.5 font-bold">◆</span>
+                <div className="flex-1">
+                  <p className="text-blue-100 font-semibold group-hover:text-white transition">{log.text}</p>
+                  <p className="text-xs text-blue-300/70 mt-1">{log.time}</p>
                 </div>
               </div>
             </motion.div>
@@ -132,46 +301,16 @@ const ActivityLog = ({ logs }) => {
   );
 };
 
-// Animated Agent Node
-const AgentNode = ({ stage, delay }) => {
-  return (
-    <motion.div
-      className="absolute w-3 h-3 bg-blue-500 rounded-full shadow-lg"
-      style={{
-        top: '-8px',
-        left: `${(stage / (PIPELINE_STAGES.length - 1)) * 100}%`,
-      }}
-      animate={{
-        left: [`${(stage / (PIPELINE_STAGES.length - 1)) * 100}%`, `${((stage + 1) / (PIPELINE_STAGES.length - 1)) * 100}%`],
-      }}
-      transition={{
-        duration: 3,
-        delay,
-        repeat: Infinity,
-        repeatType: 'loop',
-      }}
-      initial={false}
-    >
-      <motion.div
-        className="absolute w-3 h-3 bg-blue-400 rounded-full"
-        animate={{ scale: [1, 1.5, 1], opacity: [1, 0.5, 1] }}
-        transition={{ duration: 1.5, repeat: Infinity }}
-        style={{ top: 0, left: 0 }}
-      />
-    </motion.div>
-  );
-};
-
-// Requirement Table Component
+// Enhanced Requirement Table
 const RequirementTable = ({ requirements, onRowClick }) => {
   const getStatusIcon = (status) => {
     switch (status) {
       case 'verified':
-        return <CheckCircle className="w-4 h-4 text-green-500" />;
+        return <CheckCircle className="w-4 h-4 text-green-400" />;
       case 'missing':
-        return <AlertCircle className="w-4 h-4 text-red-500" />;
+        return <AlertCircle className="w-4 h-4 text-red-400" />;
       case 'processing':
-        return <Clock className="w-4 h-4 text-amber-500 animate-spin" />;
+        return <Clock className="w-4 h-4 text-amber-400 animate-spin" />;
       default:
         return null;
     }
@@ -180,13 +319,13 @@ const RequirementTable = ({ requirements, onRowClick }) => {
   const getStatusBg = (status) => {
     switch (status) {
       case 'verified':
-        return 'bg-green-50';
+        return 'bg-green-500/10 hover:bg-green-500/20';
       case 'missing':
-        return 'bg-red-50';
+        return 'bg-red-500/10 hover:bg-red-500/20';
       case 'processing':
-        return 'bg-amber-50';
+        return 'bg-amber-500/10 hover:bg-amber-500/20';
       default:
-        return 'bg-white';
+        return 'bg-white/5 hover:bg-white/10';
     }
   };
 
@@ -194,42 +333,41 @@ const RequirementTable = ({ requirements, onRowClick }) => {
     <motion.div
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
-      className="bg-white rounded-lg border border-slate-200 shadow-sm overflow-hidden"
+      className="bg-gradient-to-br from-slate-900/80 to-slate-800/80 rounded-xl border border-slate-700 shadow-2xl overflow-hidden backdrop-blur-sm"
     >
       <div className="overflow-x-auto">
-        <table className="w-full text-sm">
-          <thead className="bg-slate-50 border-b border-slate-200">
+        <table className="w-full text-sm text-white">
+          <thead className="bg-gradient-to-r from-blue-600 to-purple-600 border-b border-slate-700">
             <tr>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Requirement ID</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Status</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Document</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700">Value</th>
-              <th className="px-4 py-3 text-left font-semibold text-slate-700"></th>
+              <th className="px-4 py-3 text-left font-bold tracking-wide">Requirement ID</th>
+              <th className="px-4 py-3 text-left font-bold tracking-wide">Status</th>
+              <th className="px-4 py-3 text-left font-bold tracking-wide">Document</th>
+              <th className="px-4 py-3 text-left font-bold tracking-wide">Value</th>
+              <th className="px-4 py-3 text-left font-bold tracking-wide"></th>
             </tr>
           </thead>
           <tbody>
             {requirements.slice(0, 10).map((req, idx) => (
               <motion.tr
                 key={req.id}
-                className={`border-b border-slate-100 hover:bg-blue-50 cursor-pointer transition-colors ${getStatusBg(
-                  req.status
-                )}`}
+                className={`border-b border-slate-700 ${getStatusBg(req.status)} transition-all cursor-pointer group`}
                 onClick={() => onRowClick(req)}
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
                 transition={{ delay: idx * 0.05 }}
+                whileHover={{ scale: 1.01, paddingLeft: '8px' }}
               >
-                <td className="px-4 py-3 font-mono text-slate-900">{req.id}</td>
-                <td className="px-4 py-3">
+                <td className="px-4 py-4 font-mono text-blue-300 font-semibold">{req.id}</td>
+                <td className="px-4 py-4">
                   <div className="flex items-center gap-2">
                     {getStatusIcon(req.status)}
-                    <span className="text-slate-700 capitalize">{req.status}</span>
+                    <span className="text-white capitalize font-medium group-hover:text-blue-300 transition">{req.status}</span>
                   </div>
                 </td>
-                <td className="px-4 py-3 text-slate-600">{req.document}</td>
-                <td className="px-4 py-3 font-mono text-slate-900">{req.value}</td>
-                <td className="px-4 py-3 text-right">
-                  <ChevronRight className="w-4 h-4 text-slate-400" />
+                <td className="px-4 py-4 text-slate-300">{req.document}</td>
+                <td className="px-4 py-4 font-mono font-bold text-green-400">{req.value}</td>
+                <td className="px-4 py-4 text-right">
+                  <ChevronRight className="w-4 h-4 text-blue-400 group-hover:translate-x-1 transition-transform" />
                 </td>
               </motion.tr>
             ))}
@@ -247,14 +385,14 @@ const DetailPanel = ({ requirement, onClose }) => {
   return (
     <AnimatePresence>
       <motion.div
-        className="fixed inset-0 bg-black bg-opacity-50 z-40"
+        className="fixed inset-0 bg-black bg-opacity-70 z-40 backdrop-blur-sm"
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
         onClick={onClose}
       />
       <motion.div
-        className="fixed right-0 top-0 w-96 h-full bg-white shadow-2xl z-50 overflow-y-auto"
+        className="fixed right-0 top-0 w-96 h-full bg-gradient-to-br from-slate-900 to-slate-800 shadow-2xl z-50 overflow-y-auto border-l border-slate-700 text-white"
         initial={{ x: '100%' }}
         animate={{ x: 0 }}
         exit={{ x: '100%' }}
@@ -262,69 +400,98 @@ const DetailPanel = ({ requirement, onClose }) => {
       >
         <div className="p-6">
           <div className="flex items-center justify-between mb-6">
-            <h2 className="text-xl font-bold text-slate-900">Requirement Details</h2>
-            <button
+            <h2 className="text-2xl font-bold bg-gradient-to-r from-blue-400 to-cyan-400 bg-clip-text text-transparent">Requirement Details</h2>
+            <motion.button
               onClick={onClose}
-              className="p-1 hover:bg-slate-100 rounded transition-colors"
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              className="p-1 hover:bg-slate-700 rounded-lg transition-colors"
             >
-              <X className="w-5 h-5 text-slate-600" />
-            </button>
+              <X className="w-5 h-5 text-slate-300" />
+            </motion.button>
           </div>
 
           <div className="space-y-6">
-            <div>
-              <p className="text-sm font-medium text-slate-600 mb-2">Requirement ID</p>
-              <p className="text-lg font-mono font-bold text-slate-900">{requirement.id}</p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+            >
+              <p className="text-sm font-bold text-blue-300 mb-2 uppercase tracking-wider">Requirement ID</p>
+              <p className="text-2xl font-mono font-bold text-green-400">{requirement.id}</p>
+            </motion.div>
 
-            <div>
-              <p className="text-sm font-medium text-slate-600 mb-2">Status</p>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+            >
+              <p className="text-sm font-bold text-blue-300 mb-2 uppercase tracking-wider">Status</p>
               <div className="flex items-center gap-2">
                 {requirement.status === 'verified' && (
                   <>
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="font-semibold text-green-700">Verified</span>
+                    <CheckCircle className="w-5 h-5 text-green-400" />
+                    <span className="font-bold text-green-400">Verified</span>
                   </>
                 )}
                 {requirement.status === 'missing' && (
                   <>
-                    <AlertCircle className="w-5 h-5 text-red-500" />
-                    <span className="font-semibold text-red-700">Missing</span>
+                    <AlertCircle className="w-5 h-5 text-red-400" />
+                    <span className="font-bold text-red-400">Missing</span>
                   </>
                 )}
                 {requirement.status === 'processing' && (
                   <>
-                    <Clock className="w-5 h-5 text-amber-500 animate-spin" />
-                    <span className="font-semibold text-amber-700">Processing</span>
+                    <Clock className="w-5 h-5 text-amber-400 animate-spin" />
+                    <span className="font-bold text-amber-400">Processing</span>
                   </>
                 )}
               </div>
-            </div>
+            </motion.div>
 
-            <div>
-              <p className="text-sm font-medium text-slate-600 mb-2">Document</p>
-              <div className="bg-slate-50 p-3 rounded border border-slate-200 flex items-center gap-3">
-                <FileText className="w-5 h-5 text-blue-500" />
-                <span className="text-slate-900">{requirement.document}</span>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+            >
+              <p className="text-sm font-bold text-blue-300 mb-2 uppercase tracking-wider">Document</p>
+              <div className="bg-slate-800/50 p-4 rounded-lg border border-blue-500/30 flex items-center gap-3">
+                <FileText className="w-5 h-5 text-blue-400" />
+                <span className="text-slate-200 font-mono">{requirement.document}</span>
               </div>
-            </div>
+            </motion.div>
 
-            <div>
-              <p className="text-sm font-medium text-slate-600 mb-2">Value</p>
-              <p className="text-2xl font-bold font-mono text-slate-900">{requirement.value}</p>
-            </div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+            >
+              <p className="text-sm font-bold text-blue-300 mb-2 uppercase tracking-wider">Compliance Value</p>
+              <p className="text-3xl font-bold font-mono text-green-400">{requirement.value}</p>
+            </motion.div>
 
-            <div>
-              <p className="text-sm font-medium text-slate-600 mb-2">Last Updated</p>
-              <p className="text-slate-700">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+            >
+              <p className="text-sm font-bold text-blue-300 mb-2 uppercase tracking-wider">Last Updated</p>
+              <p className="text-slate-300 font-mono">
                 {new Date(requirement.timestamp).toLocaleString()}
               </p>
-            </div>
+            </motion.div>
 
-            <button className="w-full bg-blue-600 text-white py-2 rounded-lg font-medium hover:bg-blue-700 transition-colors flex items-center justify-center gap-2 mt-8">
+            <motion.button
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35 }}
+              whileHover={{ scale: 1.05, y: -2 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-3 rounded-lg font-bold hover:shadow-lg shadow-blue-500/50 flex items-center justify-center gap-2 mt-8 transition-all"
+            >
               <Download className="w-4 h-4" />
               Download Document
-            </button>
+            </motion.button>
           </div>
         </div>
       </motion.div>
@@ -332,11 +499,46 @@ const DetailPanel = ({ requirement, onClose }) => {
   );
 };
 
+// Aircraft Model Selector
+const AircraftSelector = ({ models, selectedModel, onSelectModel }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      className="bg-gradient-to-r from-slate-900 to-slate-800 rounded-xl border border-slate-700 p-6 shadow-2xl mb-8"
+    >
+      <h3 className="text-lg font-bold text-white mb-4 flex items-center gap-2">
+        <Plane className="w-5 h-5 text-blue-400" />
+        <span>Aircraft Fleet</span>
+      </h3>
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {models.map((model) => (
+          <motion.button
+            key={model.id}
+            onClick={() => onSelectModel(model.id)}
+            whileHover={{ scale: 1.05 }}
+            whileTap={{ scale: 0.95 }}
+            className={`p-4 rounded-lg border-2 transition-all font-semibold text-center ${
+              selectedModel === model.id
+                ? 'border-blue-400 bg-gradient-to-br from-blue-600/40 to-blue-500/20 shadow-lg shadow-blue-500/50 text-blue-200'
+                : 'border-slate-600 bg-slate-800/50 text-slate-400 hover:border-slate-500'
+            }`}
+          >
+            <div className="text-2xl mb-2">{model.icon}</div>
+            <div className="text-xs font-bold">{model.name}</div>
+            <div className="text-xs text-gray-400 mt-1">{model.range}</div>
+          </motion.button>
+        ))}
+      </div>
+    </motion.div>
+  );
+};
+
 // Main App Component
 export default function App() {
   const [requirements, setRequirements] = useState(() => generateMockData());
   const [logs, setLogs] = useState([
-    { id: 1, text: 'Pipeline initialized', time: 'now' },
+    { id: 1, text: 'Fleet initialized - Ready for certification', time: 'now' },
   ]);
   const [activeStages, setActiveStages] = useState(new Set());
   const [selectedRequirement, setSelectedRequirement] = useState(null);
@@ -345,34 +547,36 @@ export default function App() {
   const [stageCounts, setStageCounts] = useState(
     PIPELINE_STAGES.reduce((acc, stage) => ({ ...acc, [stage]: 0 }), {})
   );
+  const [selectedAircraft, setSelectedAircraft] = useState('b787');
+  const [activeStage, setActiveStage] = useState(PIPELINE_STAGES[0]);
 
   // Simulate pipeline activity
   useEffect(() => {
     const interval = setInterval(() => {
-      // Random stage activity
-      const randomStage = PIPELINE_STAGES[Math.floor(Math.random() * PIPELINE_STAGES.length)];
+      const stages = Array.from(PIPELINE_STAGES);
+      const randomStage = stages[Math.floor(Math.random() * stages.length)];
+      setActiveStage(randomStage);
+
       setActiveStages((prev) => {
         const next = new Set(prev);
         next.add(randomStage);
         return next;
       });
 
-      // Update stage counts
       setStageCounts((prev) => ({
         ...prev,
         [randomStage]: prev[randomStage] + Math.floor(Math.random() * 3) + 1,
       }));
 
-      // Add log entry
       const activities = [
-        'Fetching supplier data…',
-        'Parsing PDF: fatigue_test_v3.pdf',
-        'Mapping to CFR §25.571',
-        'Validation passed',
-        'Extracting compliance metrics',
-        'Cross-referencing standards',
-        'Generating audit trail',
-        'Preparing certification package',
+        `Processing ${AIRCRAFT_MODELS.find(m => m.id === selectedAircraft)?.name} data…`,
+        'Extracting compliance requirements…',
+        'Mapping to CFR §25.571…',
+        'Cross-referencing standards…',
+        'Parsing aerodynamic data…',
+        'Validating structural analysis…',
+        'Generating audit trail…',
+        'Preparing certification package…',
       ];
       const randomActivity = activities[Math.floor(Math.random() * activities.length)];
       const newLog = {
@@ -382,7 +586,6 @@ export default function App() {
       };
       setLogs((prev) => [newLog, ...prev].slice(0, 20));
 
-      // Clear active stages after a delay
       setTimeout(() => {
         setActiveStages((prev) => {
           const next = new Set(prev);
@@ -393,12 +596,11 @@ export default function App() {
     }, 2000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [selectedAircraft]);
 
   // Calculate metrics
   const verifiedCount = requirements.filter((r) => r.status === 'verified').length;
   const missingCount = requirements.filter((r) => r.status === 'missing').length;
-  const processingCount = requirements.filter((r) => r.status === 'processing').length;
   const verifiedPercentage = Math.round((verifiedCount / requirements.length) * 100);
   const certificationTime = Math.max(50 - missingCount / 3, 5);
 
@@ -412,31 +614,73 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-slate-50 to-blue-50">
+    <div className="min-h-screen bg-gradient-to-br from-slate-950 via-blue-950 to-slate-900 relative overflow-hidden">
+      <ParticleBackground isActive={true} />
+
       {/* Header */}
       <motion.header
         initial={{ opacity: 0, y: -20 }}
         animate={{ opacity: 1, y: 0 }}
-        className="bg-white border-b border-slate-200 shadow-sm sticky top-0 z-30"
+        className="bg-gradient-to-r from-slate-900/90 to-blue-900/90 border-b border-blue-500/30 shadow-2xl sticky top-0 z-30 backdrop-blur-md"
       >
-        <div className="max-w-7xl mx-auto px-6 py-4">
+        <div className="max-w-7xl mx-auto px-6 py-6">
           <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold text-slate-900">Boeing CertX</h1>
-              <p className="text-sm text-slate-600 mt-1">
-                Real-time Certification Pipeline · FAA Level 2
+            <motion.div
+              initial={{ scale: 0.8 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 200 }}
+            >
+              <h1 className="text-4xl font-black text-transparent bg-gradient-to-r from-blue-400 via-cyan-400 to-blue-300 bg-clip-text">
+                Boeing CertX
+              </h1>
+              <p className="text-sm text-blue-300/80 mt-1 font-semibold tracking-wider">
+                REAL-TIME AEROSPACE CERTIFICATION PIPELINE • FAA LEVEL 2
               </p>
-            </div>
-            <div className="flex items-center gap-2 text-sm text-slate-600">
-              <Zap className="w-4 h-4 text-amber-500" />
-              <span>Live Pipeline Active</span>
-            </div>
+            </motion.div>
+            <motion.div
+              className="flex items-center gap-2 text-sm text-blue-300 font-bold tracking-wider bg-blue-500/20 px-4 py-2 rounded-lg border border-blue-500/40"
+              animate={{ boxShadow: ['0 0 20px rgba(59, 130, 246, 0)', '0 0 20px rgba(59, 130, 246, 0.5)'] }}
+              transition={{ repeat: Infinity, duration: 2 }}
+            >
+              <motion.div animate={{ scale: [1, 1.2, 1] }} transition={{ repeat: Infinity, duration: 1.5 }}>
+                <Zap className="w-4 h-4 text-amber-400" />
+              </motion.div>
+              <span>🎯 Live Pipeline Active</span>
+            </motion.div>
           </div>
         </div>
       </motion.header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-6 py-8">
+      <main className="max-w-7xl mx-auto px-6 py-8 relative z-10">
+        {/* Aircraft Selector */}
+        <AircraftSelector
+          models={AIRCRAFT_MODELS}
+          selectedModel={selectedAircraft}
+          onSelectModel={setSelectedAircraft}
+        />
+
+        {/* 3D Flight Scene */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="mb-8 rounded-xl border border-blue-500/30 overflow-hidden shadow-2xl h-96 bg-gradient-to-b from-blue-900/20 to-slate-900/20"
+        >
+          <Canvas style={{ width: '100%', height: '100%' }}>
+            <PerspectiveCamera makeDefault position={[0, 5, 15]} />
+            <OrbitControls autoRotate autoRotateSpeed={2} enableZoom={false} />
+            <ambientLight intensity={0.7} />
+            <pointLight position={[10, 10, 10]} intensity={1.2} color="#3b82f6" />
+            <pointLight position={[-10, 5, -10]} intensity={0.9} color="#0369a1" />
+            <Airplane
+              position={[0, 0, 0]}
+              rotation={[0.2, 0.5, 0.1]}
+            />
+            <gridHelper args={[40, 40]} />
+          </Canvas>
+        </motion.div>
+
         {/* Metrics Row */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
           <MetricCard
@@ -452,7 +696,7 @@ export default function App() {
             color="red"
           />
           <MetricCard
-            label="Time to Certification"
+            label="Time to Cert"
             value={`${certificationTime.toFixed(1)}h`}
             icon={Clock}
             color="blue"
@@ -472,15 +716,11 @@ export default function App() {
           transition={{ delay: 0.2 }}
           className="mb-8"
         >
-          <div className="bg-white rounded-lg border border-slate-200 shadow-sm p-8">
-            <h2 className="text-lg font-semibold text-slate-900 mb-6">Certification Pipeline</h2>
+          <div className="bg-gradient-to-br from-slate-900/50 to-blue-900/50 rounded-xl border border-blue-500/30 shadow-2xl p-8 backdrop-blur-sm">
+            <h2 className="text-lg font-bold text-white mb-6 tracking-wide">
+              🔄 CERTIFICATION PIPELINE
+            </h2>
             <div className="relative">
-              {/* Agent nodes */}
-              {[0, 1, 2].map((idx) => (
-                <AgentNode key={idx} stage={0} delay={idx * 1} />
-              ))}
-
-              {/* Pipeline stages */}
               <div className="flex gap-4">
                 {PIPELINE_STAGES.map((stage) => (
                   <PipelineStage
@@ -491,24 +731,21 @@ export default function App() {
                   />
                 ))}
               </div>
-
-              {/* Flow connector */}
-              <div className="absolute top-12 left-0 right-0 h-0.5 bg-gradient-to-r from-transparent via-slate-300 to-transparent pointer-events-none -z-10" />
+              <div className="absolute top-12 left-0 right-0 h-1 bg-gradient-to-r from-blue-600 via-cyan-500 to-blue-600 rounded-full pointer-events-none opacity-30" />
             </div>
           </div>
         </motion.div>
 
         {/* Bottom Section: Activity + Details */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-8">
-          {/* Main content: Requirement Table */}
           <div className="lg:col-span-2">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.4 }}
             >
-              <h2 className="text-lg font-semibold text-slate-900 mb-4">
-                Document Verification ({requirements.length} total)
+              <h2 className="text-lg font-bold text-white mb-4 tracking-wide">
+                📋 DOCUMENT VERIFICATION ({requirements.length} total)
               </h2>
               <RequirementTable
                 requirements={requirements}
@@ -517,7 +754,6 @@ export default function App() {
             </motion.div>
           </div>
 
-          {/* Side: Activity Log */}
           <div>
             <ActivityLog logs={logs} />
           </div>
@@ -533,12 +769,13 @@ export default function App() {
           <motion.button
             onClick={handleGeneratePackage}
             disabled={isGenerating || verifiedPercentage < 80}
-            className={`px-12 py-4 rounded-lg font-semibold text-white text-lg flex items-center gap-3 transition-all ${
+            className={`px-12 py-4 rounded-xl font-bold text-lg flex items-center gap-3 transition-all shadow-2xl tracking-wide ${
               verifiedPercentage < 80
-                ? 'bg-slate-400 cursor-not-allowed'
-                : 'bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 shadow-lg hover:shadow-xl'
+                ? 'bg-slate-600 cursor-not-allowed opacity-50'
+                : 'bg-gradient-to-r from-green-600 to-emerald-600 hover:from-green-500 hover:to-emerald-500 text-white shadow-green-500/50 hover:shadow-lg'
             }`}
             animate={isGenerating ? { scale: 0.98 } : {}}
+            whileHover={verifiedPercentage >= 80 ? { y: -3 } : {}}
           >
             {isGenerating ? (
               <>
@@ -547,12 +784,12 @@ export default function App() {
                   animate={{ rotate: 360 }}
                   transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
                 />
-                <span>Generating Certification Package...</span>
+                <span>Generating FAA Package...</span>
               </>
             ) : (
               <>
                 <Download className="w-5 h-5" />
-                <span>Generate FAA Certification Package</span>
+                <span>🚀 Generate FAA Certification Package</span>
               </>
             )}
           </motion.button>
@@ -568,37 +805,41 @@ export default function App() {
               exit={{ opacity: 0 }}
             >
               <motion.div
-                className="bg-white rounded-lg shadow-2xl p-8 max-w-md w-full"
+                className="bg-gradient-to-br from-slate-900 to-slate-800 rounded-2xl shadow-2xl p-8 max-w-md w-full border border-green-500/50"
                 initial={{ scale: 0.8, opacity: 0 }}
                 animate={{ scale: 1, opacity: 1 }}
                 exit={{ scale: 0.8, opacity: 0 }}
                 transition={{ type: 'spring', stiffness: 300, damping: 30 }}
               >
                 <motion.div
-                  className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"
-                  animate={{ scale: [1, 1.05, 1] }}
-                  transition={{ repeat: 3, duration: 0.5 }}
+                  className="w-20 h-20 bg-gradient-to-br from-green-500 to-emerald-600 rounded-full flex items-center justify-center mx-auto mb-6 shadow-lg shadow-green-500/50"
+                  animate={{ scale: [1, 1.1, 1] }}
+                  transition={{ repeat: 3, duration: 0.6 }}
                 >
-                  <CheckCircle className="w-8 h-8 text-green-600" />
+                  <CheckCircle className="w-10 h-10 text-white" />
                 </motion.div>
-                <h3 className="text-2xl font-bold text-center text-slate-900 mb-2">
+                <h3 className="text-3xl font-bold text-center text-transparent bg-gradient-to-r from-green-400 to-emerald-400 bg-clip-text mb-2">
                   Success!
                 </h3>
-                <p className="text-center text-slate-600 mb-6">
+                <p className="text-center text-slate-300 mb-6 font-semibold">
                   FAA Certification Package generated and ready for submission.
                 </p>
-                <button className="w-full bg-green-600 text-white py-2 rounded-lg font-medium hover:bg-green-700 transition-colors">
-                  Download Package
-                </button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  className="w-full bg-gradient-to-r from-green-600 to-emerald-600 text-white py-3 rounded-lg font-bold hover:shadow-lg shadow-green-500/50 transition-all"
+                >
+                  📥 Download Package
+                </motion.button>
               </motion.div>
               <motion.div
                 className="absolute inset-0 pointer-events-none"
                 initial={false}
               >
-                {Array.from({ length: 6 }).map((_, i) => (
+                {Array.from({ length: 12 }).map((_, i) => (
                   <motion.div
                     key={i}
-                    className="absolute w-1 h-1 bg-green-400 rounded-full"
+                    className="absolute w-2 h-2 bg-green-400 rounded-full"
                     initial={{
                       x: '50vw',
                       y: '50vh',
@@ -609,7 +850,7 @@ export default function App() {
                       y: `${Math.random() * 100 - 50}vh`,
                       opacity: 0,
                     }}
-                    transition={{ duration: 2, delay: i * 0.1 }}
+                    transition={{ duration: 2, delay: i * 0.08 }}
                   />
                 ))}
               </motion.div>
